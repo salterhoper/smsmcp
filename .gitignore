@@ -1,0 +1,23 @@
+# Go
+/server/smsmcp
+/dist/
+*.db
+*.db-shm
+*.db-wal
+
+# Android
+client/.gradle/
+client/build/
+client/app/build/
+client/local.properties
+client/.idea/
+client/.kotlin/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
