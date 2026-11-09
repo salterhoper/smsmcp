@@ -71,8 +71,12 @@ jobs:
           rm -f "$SMSMCP_KEYSTORE_FILE"
 
           apk=app/build/outputs/apk/release/app-release.apk
-          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner
-          actual=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          [ -n "$apksigner" ] || { echo "::error::apksigner not found under $ANDROID_HOME/build-tools"; exit 1; }
+          echo "Using $apksigner"
+          certs=$("$apksigner" verify --print-certs "$apk" 2>&1) || { echo "$certs"; echo "::error::APK signature does not verify"; exit 1; }
+          echo "$certs" | grep -v '^WARNING'
+          actual=$(echo "$certs" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
           expected=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')
           if [ "$actual" != "$expected" ]; then
             echo "::error::APK signed with $actual but releases must use $expected. Refusing to publish."
