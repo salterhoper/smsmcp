@@ -21,7 +21,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
 
       - name: Build server binaries
         working-directory: server
