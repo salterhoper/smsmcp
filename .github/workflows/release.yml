@@ -2,6 +2,9 @@ name: release
 on:
   push:
     tags: ["v*"]
+  # Manual run = dry run: builds and verifies the signed APK, uploads it as a
+  # workflow artifact, publishes nothing.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -32,15 +35,63 @@ jobs:
               -o ../dist/smsmcp_${os}_${arch}${ext} ./cmd/smsmcp
           done
 
-      # TODO(release-signing): sign a release build with a keystore from secrets.
-      # Until then a debug-signed APK is published so sideloading works.
-      - name: Build gateway APK
+      # Every release is signed with the same key (see docs/RELEASING.md), so
+      # installed apps update in place instead of needing a reinstall.
+      - name: Build signed gateway APK
         working-directory: client
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          SMSMCP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SMSMCP_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SMSMCP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          EXPECTED_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
         run: |
-          ./gradlew --no-daemon assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk ../dist/smsmcp-gateway.apk
+          set -eu
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::Signing secrets or ANDROID_CERT_SHA256 variable missing. See docs/RELEASING.md."
+            exit 1
+          fi
+
+          # v1.2.3 -> versionName 1.2.3, versionCode 10203 (minor and patch must be < 100).
+          # Dry runs (not a tag) build as 0.0.0.
+          if [ "$GITHUB_REF_TYPE" = tag ]; then ver="${GITHUB_REF_NAME#v}"; else ver=0.0.0; fi
+          case "$ver" in
+            *[!0-9.]*|*.*.*.*) echo "::error::Tag must look like v1.2.3, got $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+          major=${ver%%.*}; rest=${ver#*.}; minor=${rest%%.*}; patch=${rest#*.}
+          if [ "$rest" = "$ver" ] || [ "$patch" = "$rest" ] || [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ] \
+             || [ "$minor" -ge 100 ] || [ "$patch" -ge 100 ]; then
+            echo "::error::Tag must look like v1.2.3 with minor and patch below 100"; exit 1
+          fi
+          code=$((major * 10000 + minor * 100 + patch))
+          [ "$code" -ge 1 ] || code=1
+
+          export SMSMCP_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$SMSMCP_KEYSTORE_FILE"
+          ./gradlew --no-daemon assembleRelease -PversionName="$ver" -PversionCode="$code"
+          rm -f "$SMSMCP_KEYSTORE_FILE"
+
+          apk=app/build/outputs/apk/release/app-release.apk
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner
+          actual=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          expected=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::APK signed with $actual but releases must use $expected. Refusing to publish."
+            exit 1
+          fi
+          echo "Signed $ver ($code) with certificate $actual"
+          cp "$apk" ../dist/smsmcp-gateway.apk
+
+      - name: Upload dry-run artifacts
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dry-run
+          path: dist/
+          retention-days: 3
 
       - name: Publish release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes

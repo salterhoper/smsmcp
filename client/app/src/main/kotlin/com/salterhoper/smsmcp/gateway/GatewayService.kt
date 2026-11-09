@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.BatteryManager
+import android.os.Build
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -56,7 +57,8 @@ class GatewayService : LifecycleService() {
         store = JobStore.get(this)
         ServiceCompat.startForeground(
             this, NOTIF_ID, notification("Connecting…"),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING,
+            // The remoteMessaging type exists from Android 14; older versions reject unknown type bits.
+            if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING else 0,
         )
         _status.value = "Connecting…"
 

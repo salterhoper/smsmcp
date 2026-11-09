@@ -140,6 +140,7 @@ class SmsReceiver : BroadcastReceiver() {
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         val prefs = Prefs(context)
         if (prefs.isPaired && prefs.gatewayEnabled) GatewayService.start(context)
     }

@@ -40,7 +40,7 @@ JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug testDebugUnitTest
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`client/local.properties` (`sdk.dir=...`) is machine-specific and git-ignored.
+`client/local.properties` (`sdk.dir=...`) is machine-specific and git-ignored, and so is `client/keystore.properties` (the release signing key's passwords). **Never commit the keystore or its passwords, and never generate a new release key.** See `docs/RELEASING.md`. Releases: push a `vX.Y.Z` tag.
 
 ## Invariants you must not break
 

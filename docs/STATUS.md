@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 ## Where things stand
 
@@ -35,6 +35,8 @@ The scaffold is complete and builds. The server runs end to end against a simula
 - [x] `install.sh` (release binary or `go install` fallback, systemd user unit / launchd)
 - [x] `Dockerfile` (distroless, `/data` volume)
 - [x] CI (`go vet`, `go test`, Android build + unit tests) and tag-triggered release workflow
+- [x] Permanent APK release key in GitHub secrets; release job verifies the certificate fingerprint before publishing (docs/RELEASING.md)
+- [x] versionCode derived from the tag (v1.2.3 → 10203); manual dry-run mode for the release workflow
 
 ## Next up (in priority order)
 
@@ -42,11 +44,10 @@ The scaffold is complete and builds. The server runs end to end against a simula
 2. **Verify the dual-SIM extras.** Check that `SmsReceiver` reads the subscription id correctly on the test phone (`EXTRA_SUBSCRIPTION_INDEX` vs `"subscription"`).
 3. **Server-side rate limit** per device (e.g. N per minute, configurable) so a runaway agent can't get the SIM flagged.
 4. **REST API** `POST /v1/messages` with an `Idempotency-Key` header, for non-MCP callers. Reuse `CreateOutboundMessage`.
-5. **Release signing** for the APK (keystore in GitHub secrets). See TODO in `.github/workflows/release.yml`.
-6. **TLS guidance**: document running behind Caddy or a Cloudflare Tunnel, and pin the server certificate fingerprint in the pairing link.
-7. **Admin views**: `smsmcp messages` CLI and/or a small web status page.
-8. Prune old `inbound_seen` and `events_outbox` rows on the server.
-9. Optional MCP resource `sms://conversations/{number}`.
+5. **TLS guidance**: document running behind Caddy or a Cloudflare Tunnel, and pin the server certificate fingerprint in the pairing link.
+6. **Admin views**: `smsmcp messages` CLI and/or a small web status page.
+7. Prune old `inbound_seen` and `events_outbox` rows on the server.
+8. Optional MCP resource `sms://conversations/{number}`.
 
 ## Known gaps and risks
 
@@ -59,3 +60,4 @@ The scaffold is complete and builds. The server runs end to end against a simula
 ## Session log
 
 - **2026-11-08**: Initial scaffold of server, Android app, installer, CI and docs. All server tests pass, and the APK builds. Stopped before on-device testing (item 1 above).
+- **2026-11-09**: Clean client build plus lint. Fixed a foreground-service crash on Android 10–13 (the remoteMessaging type is Android 14+ only) and added an action check in the boot receiver. Set up the permanent release signing key, GitHub secrets and fingerprint guard. Still not tested on a device.

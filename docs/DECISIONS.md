@@ -37,3 +37,6 @@ It matches the use (relaying text messages between devices). It has no 6-hour ca
 
 ## ADR-009: Distribute the APK outside Google Play (2026-11-08)
 Play only grants SMS permissions to default SMS handler apps. The APK ships from GitHub Releases.
+
+## ADR-010: One permanent APK signing key, enforced in CI (2026-11-09)
+Android rejects updates signed with a different certificate, which forces an uninstall and loses the pairing. One RSA-4096 key (valid to 2054) is kept in GitHub secrets and backed up offline by the maintainer. The release job checks the APK certificate against the `ANDROID_CERT_SHA256` repo variable and refuses to publish on a mismatch. versionCode comes from the tag so it always increases. Details: docs/RELEASING.md.
