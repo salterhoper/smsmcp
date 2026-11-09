@@ -60,4 +60,4 @@ The scaffold is complete and builds. The server runs end to end against a simula
 ## Session log
 
 - **2026-11-08**: Initial scaffold of server, Android app, installer, CI and docs. All server tests pass, and the APK builds. Stopped before on-device testing (item 1 above).
-- **2026-11-09**: Clean client build plus lint. Fixed a foreground-service crash on Android 10–13 (the remoteMessaging type is Android 14+ only) and added an action check in the boot receiver. Set up the permanent release signing key, GitHub secrets and fingerprint guard. Still not tested on a device.
+- **2026-11-09**: Clean client build plus lint. Fixed a foreground-service crash on Android 10–13 (the remoteMessaging type is Android 14+ only) and added an action check in the boot receiver. Set up the permanent release signing key, GitHub secrets and fingerprint guard. CI now uses the runner's preinstalled SDK (`setup-android@v3` is broken), and the fingerprint parser handles both apksigner 36 and 37 output. CI is green, and a release dry run produced an APK signed with the expected certificate. No version tag has been pushed yet. Still not tested on a device.
