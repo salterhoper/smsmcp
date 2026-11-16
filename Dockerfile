@@ -6,9 +6,13 @@ RUN go mod download
 COPY server/ ./
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/smsmcp ./cmd/smsmcp
+# Docker seeds a new named volume from the image, ownership included, so /data
+# must already belong to the nonroot user or SQLite cannot create its file.
+RUN mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/smsmcp /usr/local/bin/smsmcp
+COPY --from=build --chown=nonroot:nonroot /out/data /data
 ENV SMSMCP_DATA=/data SMSMCP_ADDR=:8080
 VOLUME ["/data"]
 EXPOSE 8080
