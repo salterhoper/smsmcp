@@ -60,7 +60,7 @@ class GatewayService : LifecycleService() {
             // The remoteMessaging type exists from Android 14; older versions reject unknown type bits.
             if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING else 0,
         )
-        _status.value = "Connecting…"
+        _status.value = GatewayStatus(Health.WORKING, "Connecting…")
 
         connectJob = lifecycleScope.launch(Dispatchers.IO) { connectLoop() }
         lifecycleScope.launch(Dispatchers.IO) { senderLoop() }
@@ -72,7 +72,7 @@ class GatewayService : LifecycleService() {
 
     override fun onDestroy() {
         socket?.close(1000, "service stopped")
-        _status.value = "Stopped"
+        _status.value = STOPPED
         super.onDestroy()
     }
 
@@ -84,7 +84,7 @@ class GatewayService : LifecycleService() {
             val url = prefs.serverUrl
             val token = prefs.deviceToken
             if (url == null || token == null) {
-                setStatus("Not paired")
+                setStatus(Health.OFF, "Not paired")
                 return
             }
             val closed = kotlinx.coroutines.CompletableDeferred<Unit>()
@@ -92,7 +92,7 @@ class GatewayService : LifecycleService() {
             socket = http.newWebSocket(req, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     backoff = 1_000L
-                    setStatus("Connected to $url")
+                    setStatus(Health.WORKING, "Connected to $url")
                     lifecycleScope.launch(Dispatchers.IO) {
                         flushReports()
                         sendHeartbeat()
@@ -105,13 +105,13 @@ class GatewayService : LifecycleService() {
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    if (response?.code == 401) setStatus("Server rejected this phone. Pair it again.")
-                    else setStatus("Offline: ${t.message ?: "connection failed"}. Retrying…")
+                    if (response?.code == 401) setStatus(Health.ERROR, "Server rejected this phone. Pair it again.")
+                    else setStatus(Health.ERROR, "Offline: ${t.message ?: "connection failed"}. Retrying…")
                     closed.complete(Unit)
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    setStatus("Disconnected. Retrying…")
+                    setStatus(Health.WORKING, "Disconnected. Retrying…")
                     closed.complete(Unit)
                 }
             })
@@ -126,8 +126,8 @@ class GatewayService : LifecycleService() {
         when (f.optString("type")) {
             "hello" -> {
                 val st = f.optString("device_status")
-                if (st == "pending_verification") setStatus("Connected. Verifying your number…")
-                else if (st == "active") setStatus("Connected and ready")
+                if (st == "pending_verification") setStatus(Health.WORKING, "Connected. Verifying your number…")
+                else if (st == "active") setStatus(Health.READY, "Connected and ready")
             }
             "send" -> {
                 val id = f.getString("id")
@@ -174,8 +174,8 @@ class GatewayService : LifecycleService() {
         runCatching {
             SmsSender.send(this, prefs.subscriptionId, "verify", number, msg)
             prefs.pendingVerifyMessage = null
-            setStatus("Verification SMS sent to $number…")
-        }.onFailure { setStatus("Could not send the verification SMS: ${it.message}") }
+            setStatus(Health.WORKING, "Verification SMS sent to $number…")
+        }.onFailure { setStatus(Health.ERROR, "Could not send the verification SMS: ${it.message}") }
     }
 
     // ---- sending --------------------------------------------------------------
@@ -212,9 +212,9 @@ class GatewayService : LifecycleService() {
 
     // ---- status/notification ----------------------------------------------------
 
-    private fun setStatus(s: String) {
-        _status.value = s
-        getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification(s))
+    private fun setStatus(health: Health, text: String) {
+        _status.value = GatewayStatus(health, text)
+        getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification(text))
     }
 
     private fun notification(text: String): Notification {
@@ -226,7 +226,8 @@ class GatewayService : LifecycleService() {
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
         return Notification.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_gateway)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(getColor(R.color.md_primary))
             .setContentTitle("smsmcp Gateway")
             .setContentText(text)
             .setContentIntent(open)
@@ -241,8 +242,9 @@ class GatewayService : LifecycleService() {
         private const val SEND_SPACING_MS = 1_500L
         private const val SENDING_TIMEOUT_MS = 3 * 60_000L
 
-        private val _status = MutableStateFlow("Stopped")
-        val status: StateFlow<String> = _status
+        private val STOPPED = GatewayStatus(Health.OFF, "Stopped")
+        private val _status = MutableStateFlow(STOPPED)
+        val status: StateFlow<GatewayStatus> = _status
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, GatewayService::class.java))

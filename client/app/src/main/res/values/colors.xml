@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 light scheme, seeded from indigo #4A3FD6. -->
+    <color name="md_primary">#4A3FD6</color>
+    <color name="md_on_primary">#FFFFFF</color>
+    <color name="md_primary_container">#E3DFFF</color>
+    <color name="md_on_primary_container">#140067</color>
+    <color name="md_secondary">#5D5B72</color>
+    <color name="md_on_secondary">#FFFFFF</color>
+    <color name="md_secondary_container">#E2DFF9</color>
+    <color name="md_on_secondary_container">#1A1A2C</color>
+    <color name="md_tertiary">#7B2CBF</color>
+    <color name="md_on_tertiary">#FFFFFF</color>
+    <color name="md_error">#BA1A1A</color>
+    <color name="md_on_error">#FFFFFF</color>
+    <color name="md_background">#FBF8FF</color>
+    <color name="md_on_background">#1B1B21</color>
+    <color name="md_surface">#FBF8FF</color>
+    <color name="md_on_surface">#1B1B21</color>
+    <color name="md_surface_variant">#E4E1EC</color>
+    <color name="md_on_surface_variant">#47464F</color>
+    <color name="md_surface_container_low">#F5F2FC</color>
+    <color name="md_surface_container">#EFECF7</color>
+    <color name="md_surface_container_high">#E9E6F1</color>
+    <color name="md_outline">#777680</color>
+    <color name="md_outline_variant">#C8C5D0</color>
+
+    <!-- Gateway health on the status card. -->
+    <color name="health_ready_bg">#D4F5DD</color>
+    <color name="health_ready_fg">#0B5C2A</color>
+    <color name="health_working_bg">#FFE9C7</color>
+    <color name="health_working_fg">#6B4200</color>
+    <color name="health_error_bg">#FFDAD6</color>
+    <color name="health_error_fg">#93000A</color>
+    <color name="health_off_bg">#E9E6F1</color>
+    <color name="health_off_fg">#47464F</color>
+</resources>

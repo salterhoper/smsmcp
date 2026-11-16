@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-11-09
+Last updated: 2026-11-16
 
 ## Where things stand
 
@@ -30,6 +30,7 @@ The scaffold is complete and builds. The server runs end to end against a simula
 - [x] SMS receiver filtered to the chosen SIM, multipart join, dedup hash
 - [x] Boot receiver restarts the gateway
 - [x] JVM unit tests for link parsing, state ranks, dedup hash
+- [x] Material 3 UI (XML layout, light/dark): health-coloured status card, pairing card with icon fields and inline errors, reliability card; Material Icons (Round); new adaptive launcher icon with themed-icon layer
 
 ### Repo
 - [x] `install.sh` (release binary or `go install` fallback, systemd user unit / launchd)
@@ -62,3 +63,4 @@ The scaffold is complete and builds. The server runs end to end against a simula
 - **2026-11-08**: Initial scaffold of server, Android app, installer, CI and docs. All server tests pass, and the APK builds. Stopped before on-device testing (item 1 above).
 - **2026-11-09**: Clean client build plus lint. Fixed a foreground-service crash on Android 10–13 (the remoteMessaging type is Android 14+ only) and added an action check in the boot receiver. Set up the permanent release signing key, GitHub secrets and fingerprint guard. CI now uses the runner's preinstalled SDK (`setup-android@v3` is broken), and the fingerprint parser handles both apksigner 36 and 37 output. CI is green, and a release dry run produced an APK signed with the expected certificate. No version tag has been pushed yet. Still not tested on a device.
 - **2026-11-09**: Released **v0.1.0** (https://github.com/salterhoper/smsmcp/releases/tag/v0.1.0): five server binaries and a signed APK (versionCode 100, cert `13a76c…a2dd`). Verified the `releases/latest` links and ran `install.sh` against the release (binary + `init`, service step skipped). The app is still untested on a real phone, so item 1 under Next up is still first. The next release must be v0.1.1 or higher.
+- **2026-11-16**: Redesigned the Android UI. Added Material Components 1.12 + AppCompat 1.7, a Material 3 DayNight theme (indigo palette), and `res/layout/activity_main.xml` replacing the code-built views (ADR-011). The service now publishes `GatewayStatus(health, text)` instead of a bare string. New adaptive launcher icon (bubble with linked nodes) and matching notification icon. Build, unit tests and lint pass (lint: only the earlier warnings plus a false positive on `mipmap-anydpi-v26`, which AAPT requires). Installed the debug build on a Pixel 7: the unpaired dark-mode screen renders correctly. The paired/connected status colours and light mode have not been checked on the device yet. Pairing itself is still untested end to end (Next up item 1).

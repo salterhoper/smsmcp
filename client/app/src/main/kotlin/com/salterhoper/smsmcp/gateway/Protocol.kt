@@ -24,6 +24,12 @@ object JobState {
     fun canAdvance(from: String, to: String): Boolean = (rank[to] ?: -1) > (rank[from] ?: -1)
 }
 
+/** How the gateway is doing; picks the colour and icon of the status card. */
+enum class Health { OFF, WORKING, READY, ERROR }
+
+/** Gateway status shown in the app and the notification. */
+data class GatewayStatus(val health: Health, val text: String)
+
 /** Parsed smsmcp://pair?url=...&token=... link from the QR code. */
 data class PairingLink(val serverUrl: String, val token: String) {
     companion object {

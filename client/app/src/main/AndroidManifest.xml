@@ -22,10 +22,11 @@
     <application
         android:name=".GatewayApp"
         android:allowBackup="false"
-        android:icon="@drawable/ic_gateway"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.DarkActionBar"
+        android:theme="@style/Theme.Smsmcp"
         android:usesCleartextTraffic="true"
         tools:targetApi="36">
 

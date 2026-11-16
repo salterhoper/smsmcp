@@ -40,3 +40,6 @@ Play only grants SMS permissions to default SMS handler apps. The APK ships from
 
 ## ADR-010: One permanent APK signing key, enforced in CI (2026-11-09)
 Android rejects updates signed with a different certificate, which forces an uninstall and loses the pairing. One RSA-4096 key (valid to 2054) is kept in GitHub secrets and backed up offline by the maintainer. The release job checks the APK certificate against the `ANDROID_CERT_SHA256` repo variable and refuses to publish on a mismatch. versionCode comes from the tag so it always increases. Details: docs/RELEASING.md.
+
+## ADR-011: Material 3 Views with an XML layout for the app UI (2026-11-16)
+The setup screen moved from views built in code on the platform theme to an XML layout with Material Components (`com.google.android.material`) and a Material 3 DayNight theme. That gives cards, outlined text fields with icons and inline errors, an exposed dropdown for the SIM, and dark mode, for one dependency. Compose was not chosen: it needs the Compose compiler plugin and a larger dependency set for a single screen. Icons are Google's Material Icons (Round), copied as vector drawables from Android Studio's bundled set, so no icon font or extra library ships. The gateway status is now typed (`GatewayStatus(health, text)` in `Protocol.kt`) so the UI picks colour and icon without parsing strings.

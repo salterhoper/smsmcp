@@ -2,31 +2,31 @@ package com.salterhoper.smsmcp.gateway
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
+import android.content.res.ColorStateList
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.text.InputType
-import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Spinner
-import android.widget.TextView
-import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.snackbar.Snackbar
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import com.salterhoper.smsmcp.gateway.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,21 +37,15 @@ import java.net.URL
 class GatewayApp : Application()
 
 /**
- * Setup screen: scan the pairing QR, pick the SIM/number, pair, and start the
- * gateway. Built in code (no XML layouts) to keep the scaffold small; replace
- * with Compose when the UI grows.
+ * Setup screen: a status card, then pairing (scan the QR, pick the SIM and
+ * number, pair), then reliability settings. Layout: res/layout/activity_main.xml.
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
-    private lateinit var statusView: TextView
-    private lateinit var linkInput: EditText
-    private lateinit var simSpinner: Spinner
-    private lateinit var numberInput: EditText
-    private lateinit var nameInput: EditText
-    private lateinit var pairButton: Button
-    private lateinit var toggleButton: Button
+    private lateinit var ui: ActivityMainBinding
     private var sims: List<SimInfo> = emptyList()
+    private var simIndex = 0
 
     private val permissions = buildList {
         add(Manifest.permission.SEND_SMS)
@@ -66,17 +60,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private val scan = registerForActivityResult(ScanContract()) { result ->
-        result.contents?.let { linkInput.setText(it) }
+        result.contents?.let { ui.linkInput.setText(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
-        setContentView(buildUi())
-        intent?.data?.let { linkInput.setText(it.toString()) }
+        ui = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(ui.root)
+        applyInsets()
+        bindActions()
+        ui.nameInput.setText(Build.MODEL)
+        intent?.data?.let { ui.linkInput.setText(it.toString()) }
 
         lifecycleScope.launch {
-            GatewayService.status.collect { s -> statusView.text = statusLine(s) }
+            GatewayService.status.collect { renderStatus(it) }
         }
         if (permissions.any { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }) {
             askPermissions.launch(permissions)
@@ -86,48 +85,142 @@ class MainActivity : ComponentActivity() {
         refresh()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        intent.data?.let { linkInput.setText(it.toString()) }
+    override fun onResume() {
+        super.onResume()
+        renderBattery() // the user may be back from the battery settings screen
     }
 
-    private fun statusLine(s: String) =
-        if (prefs.isPaired) "Paired as ${prefs.phoneNumber}\n$s" else "Not paired yet. Run `smsmcp pair` on your server and scan the code."
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.data?.let { ui.linkInput.setText(it.toString()) }
+    }
+
+    private fun applyInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(ui.root) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            ui.root.updatePadding(left = bars.left, top = bars.top, right = bars.right)
+            ui.scroll.updatePadding(bottom = maxOf(bars.bottom, ime.bottom))
+            WindowInsetsCompat.CONSUMED
+        }
+    }
+
+    private fun bindActions() {
+        ui.scanButton.setOnClickListener {
+            scan.launch(ScanOptions().setPrompt(getString(R.string.scan_prompt)).setBeepEnabled(false).setOrientationLocked(false))
+        }
+        ui.linkInput.addTextChangedListener(clearError { ui.linkLayout.error = null })
+        ui.numberInput.addTextChangedListener(clearError { ui.numberLayout.error = null })
+        ui.simInput.setOnItemClickListener { _, _, pos, _ ->
+            simIndex = pos
+            sims.getOrNull(pos)?.number?.let { if (ui.numberInput.text.isNullOrBlank()) ui.numberInput.setText(it) }
+        }
+        ui.pairButton.setOnClickListener { pair() }
+        ui.toggleButton.setOnClickListener { toggleGateway() }
+        ui.batteryButton.setOnClickListener { askBatteryExemption() }
+        ui.copyButton.setOnClickListener { copyLimitCommand() }
+    }
+
+    private fun clearError(clear: () -> Unit) = object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = clear()
+        override fun afterTextChanged(s: android.text.Editable?) {}
+    }
+
+    // ---- rendering --------------------------------------------------------------
 
     private fun refresh() {
-        statusView.text = statusLine(GatewayService.status.value)
-        pairButton.text = if (prefs.isPaired) "Pair again (replaces this pairing)" else "Pair this phone"
-        toggleButton.visibility = if (prefs.isPaired) View.VISIBLE else View.GONE
-        toggleButton.text = if (prefs.gatewayEnabled) "Stop gateway" else "Start gateway"
+        renderStatus(GatewayService.status.value)
+        val paired = prefs.isPaired
+        ui.pairTitle.setText(if (paired) R.string.section_repair else R.string.section_pair)
+        ui.pairHint.visibility = if (paired) View.VISIBLE else View.GONE
+        ui.pairButton.setText(if (paired) R.string.section_repair else R.string.pair)
+        ui.toggleButton.visibility = if (paired) View.VISIBLE else View.GONE
+        ui.toggleButton.setText(if (prefs.gatewayEnabled) R.string.stop_gateway else R.string.start_gateway)
+        renderBattery()
+    }
+
+    private fun renderStatus(s: GatewayStatus) {
+        val health: Health
+        val title: String
+        val detail: String
+        when {
+            !prefs.isPaired -> {
+                health = Health.OFF; title = getString(R.string.status_not_paired); detail = getString(R.string.status_not_paired_detail)
+            }
+            !prefs.gatewayEnabled -> {
+                health = Health.OFF; title = getString(R.string.status_off); detail = getString(R.string.status_off_detail)
+            }
+            // Enabled, but the service hasn't reported yet.
+            s.health == Health.OFF -> {
+                health = Health.WORKING; title = getString(R.string.status_working); detail = s.text
+            }
+            else -> {
+                health = s.health
+                title = getString(
+                    when (health) {
+                        Health.READY -> R.string.status_ready
+                        Health.ERROR -> R.string.status_error
+                        else -> R.string.status_working
+                    },
+                )
+                detail = s.text
+            }
+        }
+        val (bg, fg, icon) = when (health) {
+            Health.READY -> Triple(R.color.health_ready_bg, R.color.health_ready_fg, R.drawable.ic_cloud_done)
+            Health.WORKING -> Triple(R.color.health_working_bg, R.color.health_working_fg, R.drawable.ic_sync)
+            Health.ERROR -> Triple(R.color.health_error_bg, R.color.health_error_fg, R.drawable.ic_error)
+            Health.OFF -> Triple(
+                R.color.health_off_bg, R.color.health_off_fg,
+                if (prefs.isPaired) R.drawable.ic_cloud_off else R.drawable.ic_link_off,
+            )
+        }
+        val fgColor = getColor(fg)
+        ui.statusCard.setCardBackgroundColor(getColor(bg))
+        ui.statusIcon.setImageResource(icon)
+        ui.statusIcon.imageTintList = ColorStateList.valueOf(fgColor)
+        ui.statusTitle.text = title
+        ui.statusTitle.setTextColor(fgColor)
+        ui.statusDetail.text = detail
+        ui.statusDetail.setTextColor(fgColor)
+        ui.statusNumber.setTextColor(fgColor)
+        ui.statusNumber.visibility = if (prefs.isPaired) View.VISIBLE else View.GONE
+        ui.statusNumber.text = getString(R.string.paired_as, prefs.phoneNumber.orEmpty())
+    }
+
+    private fun renderBattery() {
+        val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+        ui.batteryStatus.setText(if (exempt) R.string.battery_off else R.string.battery_on)
+        ui.batteryButton.visibility = if (exempt) View.GONE else View.VISIBLE
     }
 
     private fun loadSims() {
         sims = Sims.list(this)
-        val labels = if (sims.isEmpty()) listOf("Default SIM") else sims.map { it.label }
-        simSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
-        simSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                sims.getOrNull(pos)?.number?.let { if (numberInput.text.isBlank()) numberInput.setText(it) }
-            }
-            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
-        }
+        val labels = if (sims.isEmpty()) listOf(getString(R.string.default_sim)) else sims.map { it.label }
+        ui.simInput.setAdapter(ArrayAdapter(this, android.R.layout.simple_list_item_1, labels))
+        simIndex = simIndex.coerceIn(0, labels.lastIndex)
+        ui.simInput.setText(labels[simIndex], false)
+        sims.getOrNull(simIndex)?.number?.let { if (ui.numberInput.text.isNullOrBlank()) ui.numberInput.setText(it) }
     }
 
+    // ---- actions ----------------------------------------------------------------
+
     private fun pair() {
-        val link = PairingLink.parse(linkInput.text.toString())
+        val link = PairingLink.parse(ui.linkInput.text?.toString().orEmpty())
         if (link == null) {
-            statusView.text = "That isn't a pairing link. It should start with smsmcp://pair"
+            ui.linkLayout.error = getString(R.string.error_link)
             return
         }
-        val number = numberInput.text.toString().trim()
+        val number = ui.numberInput.text?.toString().orEmpty().trim()
         if (number.length < 5) {
-            statusView.text = "Enter the phone number of the SIM you picked, e.g. +255712345678"
+            ui.numberLayout.error = getString(R.string.error_number)
             return
         }
-        val subId = sims.getOrNull(simSpinner.selectedItemPosition)?.subscriptionId ?: -1
-        val name = nameInput.text.toString().ifBlank { Build.MODEL }
-        pairButton.isEnabled = false
-        statusView.text = "Pairing with ${link.serverUrl}…"
+        val subId = sims.getOrNull(simIndex)?.subscriptionId ?: -1
+        val name = ui.nameInput.text?.toString().orEmpty().ifBlank { Build.MODEL }
+        ui.pairButton.isEnabled = false
+        ui.pairButton.setText(R.string.pairing)
 
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -139,7 +232,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
-            pairButton.isEnabled = true
+            ui.pairButton.isEnabled = true
             result.onSuccess { r ->
                 GatewayService.stop(this@MainActivity)
                 prefs.serverUrl = link.serverUrl
@@ -149,10 +242,13 @@ class MainActivity : ComponentActivity() {
                 prefs.subscriptionId = subId
                 prefs.pendingVerifyMessage = r.getString("verify_message")
                 prefs.gatewayEnabled = true
-                linkInput.setText("")
+                ui.linkInput.setText("")
                 GatewayService.start(this@MainActivity)
-                refresh()
-            }.onFailure { statusView.text = "Pairing failed: ${it.message}" }
+                ui.scroll.smoothScrollTo(0, 0)
+            }.onFailure {
+                Snackbar.make(ui.root, getString(R.string.pair_failed, it.message), Snackbar.LENGTH_LONG).show()
+            }
+            refresh()
         }
     }
 
@@ -185,67 +281,13 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("BatteryLife")
     private fun askBatteryExemption() {
-        val pm = getSystemService(PowerManager::class.java)
-        if (pm.isIgnoringBatteryOptimizations(packageName)) {
-            statusView.text = "Battery optimisation is already off for this app."
-            return
-        }
-        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:$packageName".toUri()))
     }
 
-    // ---- layout -----------------------------------------------------------------
-
-    private fun buildUi(): View {
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
-        fun label(text: String) = TextView(this).apply { this.text = text; setPadding(0, pad, 0, pad / 4) }
-
-        col.addView(TextView(this).apply { text = "smsmcp Gateway"; textSize = 24f })
-        statusView = TextView(this).apply { textSize = 15f; setPadding(0, pad / 2, 0, pad / 2) }
-        col.addView(statusView)
-
-        col.addView(label("1. Pairing link"))
-        col.addView(Button(this).apply {
-            text = "Scan pairing QR"
-            setOnClickListener {
-                scan.launch(ScanOptions().setPrompt("Scan the code from `smsmcp pair`").setBeepEnabled(false).setOrientationLocked(false))
-            }
-        })
-        linkInput = EditText(this).apply {
-            hint = "or paste smsmcp://pair?…"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        }
-        col.addView(linkInput)
-
-        col.addView(label("2. SIM that sends and receives for agents"))
-        simSpinner = Spinner(this)
-        col.addView(simSpinner)
-        numberInput = EditText(this).apply { hint = "Phone number of that SIM, e.g. +255712345678"; inputType = InputType.TYPE_CLASS_PHONE }
-        col.addView(numberInput)
-
-        col.addView(label("3. Name for this phone"))
-        nameInput = EditText(this).apply { setText(Build.MODEL); inputType = InputType.TYPE_CLASS_TEXT }
-        col.addView(nameInput)
-
-        pairButton = Button(this).apply { setOnClickListener { pair() } }
-        col.addView(pairButton)
-        toggleButton = Button(this).apply { setOnClickListener { toggleGateway() } }
-        col.addView(toggleButton)
-        col.addView(Button(this).apply {
-            text = "Keep running in background (battery settings)"
-            setOnClickListener { askBatteryExemption() }
-        })
-        col.addView(TextView(this).apply {
-            text = "Android limits apps to about 30 SMS per 30 minutes. To raise it, run on your computer:\n" +
-                "adb shell settings put global sms_outgoing_check_max_count 1000"
-            textSize = 12f
-            gravity = Gravity.START
-            setTextIsSelectable(true)
-            setPadding(0, pad, 0, 0)
-        })
-        return ScrollView(this).apply { addView(col) }
+    private fun copyLimitCommand() {
+        getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText("adb command", getString(R.string.limit_command)))
+        // Android 13+ shows its own clipboard confirmation.
+        if (Build.VERSION.SDK_INT < 33) Snackbar.make(ui.root, R.string.copied, Snackbar.LENGTH_SHORT).show()
     }
 }

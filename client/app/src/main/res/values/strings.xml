@@ -1,4 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">smsmcp Gateway</string>
+
+    <string name="status_not_paired">Not paired</string>
+    <string name="status_not_paired_detail">Run `smsmcp pair` on your server, then scan the code below.</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_working">Working on it</string>
+    <string name="status_error">Needs attention</string>
+    <string name="status_off">Gateway stopped</string>
+    <string name="status_off_detail">Agents can\'t send or receive SMS until you start it.</string>
+    <string name="paired_as">Paired as %1$s</string>
+    <string name="start_gateway">Start gateway</string>
+    <string name="stop_gateway">Stop gateway</string>
+
+    <string name="section_pair">Pair with your server</string>
+    <string name="section_repair">Pair again</string>
+    <string name="section_repair_hint">Pairing again replaces the current pairing.</string>
+    <string name="step_link">Pairing link</string>
+    <string name="scan_qr">Scan pairing QR</string>
+    <string name="scan_prompt">Scan the code from `smsmcp pair`</string>
+    <string name="link_hint">Or paste smsmcp://pair?…</string>
+    <string name="step_sim">SIM and number</string>
+    <string name="sim_hint">SIM that agents use</string>
+    <string name="default_sim">Default SIM</string>
+    <string name="number_hint">Phone number of that SIM</string>
+    <string name="number_helper">International format, e.g. +255712345678</string>
+    <string name="step_name">This phone</string>
+    <string name="name_hint">Name shown on the server</string>
+    <string name="pair">Pair this phone</string>
+    <string name="pairing">Pairing…</string>
+
+    <string name="section_reliability">Keep it running</string>
+    <string name="battery_title">Battery optimisation</string>
+    <string name="battery_on">On. Android may stop the gateway in the background.</string>
+    <string name="battery_off">Off. The gateway can run in the background.</string>
+    <string name="battery_action">Turn off</string>
+    <string name="limit_title">SMS sending limit</string>
+    <string name="limit_body">Android allows about 30 SMS per 30 minutes. To raise it, run this on your computer:</string>
+    <string name="limit_command" translatable="false">adb shell settings put global sms_outgoing_check_max_count 1000</string>
+    <string name="copy">Copy command</string>
+    <string name="copied">Command copied</string>
+
+    <string name="error_link">That isn\'t a pairing link. It should start with smsmcp://pair</string>
+    <string name="error_number">Enter the number of the SIM you picked, e.g. +255712345678</string>
+    <string name="pair_failed">Pairing failed: %1$s</string>
 </resources>

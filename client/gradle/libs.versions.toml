@@ -6,6 +6,8 @@ lifecycle = "2.11.0"
 coroutines = "1.11.0"
 okhttp = "4.12.0"
 zxingEmbedded = "4.3.0"
+material = "1.12.0"
+appcompat = "1.7.0"
 junit = "4.13.2"
 
 [libraries]
@@ -16,6 +18,8 @@ androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtim
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 zxing-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingEmbedded" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]

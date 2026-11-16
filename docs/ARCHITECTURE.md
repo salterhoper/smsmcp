@@ -36,7 +36,7 @@ Background loops started by `serve`:
 
 | File | Responsibility |
 |---|---|
-| `MainActivity.kt` | Setup UI, QR scan, pairing request |
+| `MainActivity.kt` | Setup UI (`res/layout/activity_main.xml`, Material 3), QR scan, pairing request |
 | `GatewayService.kt` | Foreground service: WebSocket, sender loop, report flushing, housekeeping |
 | `JobStore.kt` | Local SQLite: jobs + inbound, with the same forward-only state rules as the server |
 | `Sms.kt` | SIM listing, `SmsSender`, sent/delivered receiver, inbound receiver, boot receiver |
