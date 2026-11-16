@@ -233,10 +233,19 @@ func (h *Hub) handle(ctx context.Context, c *conn, f Frame) error {
 		if f.Dedup == "" || f.From == "" {
 			return errors.New("inbound frame needs dedup and from")
 		}
-		if err := h.handleInbound(ctx, c.deviceID, f); err != nil {
+		verified, err := h.handleInbound(ctx, c.deviceID, f)
+		if err != nil {
 			return err
 		}
-		return c.write(ctx, Frame{Type: "inbound_ack", Dedup: f.Dedup})
+		if err := c.write(ctx, Frame{Type: "inbound_ack", Dedup: f.Dedup}); err != nil {
+			return err
+		}
+		if verified {
+			// The phone only learns its status from hello, which it got while
+			// still pending. Repeat it so the app stops showing "verifying".
+			return c.write(ctx, Frame{Type: "hello", DeviceID: c.deviceID, DeviceStatus: store.DeviceActive})
+		}
+		return nil
 
 	case "heartbeat":
 		return h.Store.TouchDevice(ctx, c.deviceID, f.Heartbeat)
@@ -246,29 +255,31 @@ func (h *Hub) handle(ctx context.Context, c *conn, f Frame) error {
 	}
 }
 
-func (h *Hub) handleInbound(ctx context.Context, deviceID string, f Frame) error {
+// handleInbound stores an inbound SMS, or activates the device if it is the
+// verification text. It reports whether the device was just verified.
+func (h *Hub) handleInbound(ctx context.Context, deviceID string, f Frame) (bool, error) {
 	dev, err := h.Store.GetDevice(ctx, deviceID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// Number verification: the phone texts "smsmcp verify <code>" to its own
 	// number. Receiving it from that number on that device proves the SIM.
 	if dev.Status == store.DevicePending && dev.VerifyCode != "" &&
 		strings.Contains(f.Body, "smsmcp verify "+dev.VerifyCode) && phone.SameNumber(f.From, dev.PhoneNumber) {
 		if _, err := h.Store.ActivateDevice(ctx, dev.ID); err != nil {
-			return err
+			return false, err
 		}
 		h.Log.Info("device verified", "device", dev.ID, "number", dev.PhoneNumber)
-		return h.Store.MarkInboundSeen(ctx, dev.ID, f.Dedup)
+		return true, h.Store.MarkInboundSeen(ctx, dev.ID, f.Dedup)
 	}
 	m, dup, err := h.Store.InsertInbound(ctx, deviceID, f.Dedup, f.From, f.Body, f.ReceivedAt)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !dup {
 		h.Log.Info("inbound sms", "id", m.ID, "from", m.PeerNumber)
 	}
-	return nil
+	return false, nil
 }
 
 func (c *conn) write(ctx context.Context, f Frame) error {

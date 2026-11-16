@@ -30,7 +30,7 @@ Every frame is a JSON object with `type`.
 
 | type | fields | phone must |
 |---|---|---|
-| `hello` | `device_id`, `device_status` (`pending_verification`\|`active`) | (info) |
+| `hello` | `device_id`, `device_status` (`pending_verification`\|`active`) | (info) Sent on connect, and again with `active` as soon as the verification SMS arrives |
 | `send` | `id`, `to`, `body` | store by `id` (ignore if known), then send `status` with its current state |
 | `status_ack` | `id`, `status` | stop re-sending that status |
 | `inbound_ack` | `dedup` | stop re-sending that inbound |

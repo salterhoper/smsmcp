@@ -109,6 +109,10 @@ func TestPhoneEndToEnd(t *testing.T) {
 	if d, _ := st.GetDevice(ctx, pr.DeviceID); d.Status != store.DeviceActive {
 		t.Fatalf("device not activated: %s", d.Status)
 	}
+	// The phone is told right away, so the app doesn't stay on "verifying".
+	if hello := p.next("hello"); hello.DeviceStatus != store.DeviceActive {
+		t.Fatalf("hello after verification: status %q", hello.DeviceStatus)
+	}
 	if msgs, _ := st.ListMessages(ctx, store.ListFilter{}); len(msgs) != 0 {
 		t.Fatal("verification SMS should not appear as a message")
 	}
